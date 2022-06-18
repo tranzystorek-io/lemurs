@@ -1,0 +1,35 @@
+## arg 1:  the new package version
+#pre_install() {
+	# do something here
+#}
+
+## arg 1:  the new package version
+post_install() {
+    sudo systemctl disable display-manager.service
+    sudo systemctl enable lemurs.service
+
+    sudo mkdir -p '/etc/lemurs/wms'
+}
+
+## arg 1:  the new package version
+## arg 2:  the old package version
+#pre_upgrade() {
+	# do something here
+#}
+
+## arg 1:  the new package version
+## arg 2:  the old package version
+# post_upgrade() {
+	# do something here
+# }
+
+## arg 1:  the old package version
+pre_remove() {
+    sudo systemctl disable lemurs.service
+    sudo rm -f /usr/lib/systemd/system/lemurs.service
+}
+
+## arg 1:  the old package version
+#post_remove() {
+	# do something here
+#}
