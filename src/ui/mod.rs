@@ -168,7 +168,7 @@ impl LoginForm {
         A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>
             + std::marker::Send
             + 'static,
-        S: Fn(&PostLoginEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>
+        S: Fn(&PostLoginEnvironment, &Config, AuthUserInfo) -> Result<(), EnvironmentStartError>
             + std::marker::Send
             + 'static,
     {
@@ -287,7 +287,7 @@ impl LoginForm {
     fn attempt_login<'a, A, S>(&mut self, auth_fn: A, start_env_fn: S)
     where
         A: Fn(String, String) -> Result<AuthUserInfo<'a>, AuthenticationError>,
-        S: Fn(&PostLoginEnvironment, &Config, &AuthUserInfo) -> Result<(), EnvironmentStartError>,
+        S: Fn(&PostLoginEnvironment, &Config, AuthUserInfo) -> Result<(), EnvironmentStartError>,
     {
         let username = self.username_widget.get_content();
         let password = self.password_widget.get_content();
@@ -325,14 +325,11 @@ impl LoginForm {
 
         // NOTE: if this call is succesful, it blocks the thread until the environment is
         // terminated
-        start_env_fn(&post_login_env, &self.config, &user_info).unwrap_or_else(|_| {
+        start_env_fn(&post_login_env, &self.config, user_info).unwrap_or_else(|_| {
             error!("Starting post-login environment failed");
             self.set_status_message(ErrorStatusMessage::FailedGraphicalEnvironment);
         });
 
         self.clear_status_message();
-
-        // Just to add explicitness that the user session is dropped here
-        drop(user_info);
     }
 }

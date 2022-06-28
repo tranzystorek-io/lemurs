@@ -1,6 +1,10 @@
+#![feature(setgroups)]
+
 use std::error::Error;
 use std::io;
+use std::io::ErrorKind;
 use std::process;
+use std::time::Duration;
 
 use clap::{arg, App as ClapApp};
 use crossterm::{
@@ -14,6 +18,7 @@ use tui::Terminal;
 mod auth;
 mod config;
 mod info_caching;
+mod ipc;
 mod post_login;
 mod ui;
 
@@ -24,6 +29,10 @@ use post_login::{EnvironmentStartError, PostLoginEnvironment};
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
 const DEFAULT_LOG_PATH: &str = "/var/log/lemurs.log";
+
+fn is_in_session() -> bool {
+    return std::env::vars().any(|(key, value)| key == "USER" && !value.is_empty());
+}
 
 fn merge_in_configuration(config: &mut Config, config_path: Option<&str>) {
     let load_config_path = config_path.unwrap_or(DEFAULT_CONFIG_PATH);
@@ -100,11 +109,49 @@ fn main() -> Result<(), Box<dyn Error>> {
         .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(arg!(--preview))
         .arg(arg!(--nolog))
+        .arg(arg!(-q --logout "Logout from the current lemurs session"))
         .arg(arg!(-c --config [FILE] "a file to replace the default configuration"))
         .get_matches();
 
     let no_log = matches.is_present("nolog");
     let preview = matches.is_present("preview");
+    let logout = matches.is_present("logout");
+    let is_in_session = is_in_session();
+
+    if is_in_session && !(preview || logout) {
+        eprintln!("Already in an authenticated session. You can either run with `--preview` or `--logout`.");
+        std::process::exit(1);
+    }
+
+    if logout {
+        // Prevent logging out when not in a session
+        if !is_in_session {
+            eprintln!("Cannot logout without being in an authenticated session");
+            std::process::exit(1);
+        }
+
+        println!("Requesting a logout");
+        match ipc::send_for_logout() {
+            Ok(_) => {
+                println!("Logging out...");
+                std::thread::sleep(Duration::from_secs(1));
+                process::exit(0);
+            }
+            Err(err) => {
+                match err.kind() {
+                    ErrorKind::PermissionDenied => {
+                        eprintln!(
+                            "No permission to logout. Logout should be run with root priveledges"
+                        )
+                    }
+                    _ => {
+                        eprintln!("Failed to communicate with Lemurs session. Reason: {}", err)
+                    }
+                };
+                process::exit(1);
+            }
+        }
+    }
 
     // Setup the logger
     if !no_log {
@@ -162,7 +209,7 @@ pub fn tui_disable(mut terminal: Terminal<CrosstermBackend<io::Stdout>>) -> io::
 fn post_login_env_start<'a>(
     post_login_env: &PostLoginEnvironment,
     config: &Config,
-    user_info: &AuthUserInfo<'a>,
+    user_info: AuthUserInfo<'a>,
 ) -> Result<(), EnvironmentStartError> {
     post_login_env.start(config, user_info)
 }
