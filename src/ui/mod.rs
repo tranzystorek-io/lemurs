@@ -98,9 +98,10 @@ pub struct LoginForm {
 impl LoginForm {
     fn try_redraw(&mut self) {
         if let Some(ui_thread_channel) = &self.send_redraw_channel {
-            ui_thread_channel
-                .send(UIThreadRequest::Redraw(Box::new(self.clone())))
-                .unwrap();
+            match ui_thread_channel.send(UIThreadRequest::Redraw(Box::new(self.clone()))) {
+                Err(err) => error!("Failed to send redraw message. Reason: {}", err),
+                Ok(_) => {}
+            }
         }
     }
 
@@ -178,7 +179,10 @@ impl LoginForm {
                 let layout = Chunks::new(f);
                 login_form.render(f, layout);
             })
-            .unwrap();
+            .map_err(|err| {
+                error!("Failed to do initial drawing. Reason: {}", err);
+                err
+            })?;
 
         let (req_send_channel, req_recv_channel) = channel();
 
@@ -217,7 +221,13 @@ impl LoginForm {
                         (KeyCode::Esc, InputMode::Normal) => {
                             if self.preview {
                                 info!("Pressed escape in preview mode to exit the application");
-                                req_send_channel.send(UIThreadRequest::StopDrawing).unwrap();
+                                match req_send_channel.send(UIThreadRequest::StopDrawing) {
+                                    Err(err) => error!(
+                                        "Failed to send stop drawing message. Reason: {}",
+                                        err
+                                    ),
+                                    Ok(_) => {}
+                                }
                             }
                         }
 
@@ -256,7 +266,10 @@ impl LoginForm {
                     let layout = Chunks::new(f);
                     login_form.render(f, layout);
                 })
-                .unwrap();
+                .map_err(|err| {
+                    error!("Failed to render an UI frame. Reason: {}", err);
+                    err
+                })?;
         }
 
         Ok(())
@@ -330,6 +343,10 @@ impl LoginForm {
             self.set_status_message(ErrorStatusMessage::FailedGraphicalEnvironment);
         });
 
+        info!("Logged out. Resuming drawing UI");
         self.clear_status_message();
+
+        info!("Try redraw");
+        self.try_redraw();
     }
 }

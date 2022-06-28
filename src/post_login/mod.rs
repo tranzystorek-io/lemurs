@@ -7,6 +7,7 @@ use crate::config::Config;
 use crate::ipc::{
     message_to_outbox, send_for_logout, IncomingSocket, IpcRequest, INBOX_SOCKET_PATH,
 };
+use crate::tty::switch_to_lemurs_tty;
 use env_variables::{init_environment, set_xdg_env};
 
 mod env_variables;
@@ -73,10 +74,14 @@ impl PostLoginEnvironment {
                         EnvironmentStartError::HandleLogout(err)
                     })?;
 
+                switch_to_lemurs_tty(config.tty);
+
+                info!("Killing GUI environment");
                 if let Err(err) = gui_environment.kill() {
                     warn!("Failed to kill gui_environment. Reason: {}", err);
                 }
 
+                info!("Killing X server");
                 if let Err(err) = x_server.kill() {
                     warn!("Failed to kill X server. Reason: {}", err);
                 }

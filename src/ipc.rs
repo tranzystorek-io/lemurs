@@ -1,10 +1,10 @@
 use std::convert::TryFrom;
-use std::io;
 use std::io::{Error, ErrorKind};
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::time::Duration;
+use std::{fs, io};
 
 use log::{error, info, warn};
 use nix::unistd::{Gid, Uid};
@@ -105,6 +105,18 @@ impl IncomingSocket {
         }
 
         Ok(())
+    }
+}
+
+impl Drop for IncomingSocket {
+    fn drop(&mut self) {
+        match fs::remove_file(self.path.clone()) {
+            Err(err) => error!(
+                "Failed to remove socket file for '{}'. Reason: {}",
+                self.path, err
+            ),
+            Ok(_) => {}
+        }
     }
 }
 

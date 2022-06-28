@@ -20,11 +20,14 @@ mod config;
 mod info_caching;
 mod ipc;
 mod post_login;
+mod tty;
 mod ui;
 
 use auth::{try_auth, AuthUserInfo};
 use config::Config;
 use post_login::{EnvironmentStartError, PostLoginEnvironment};
+
+use crate::tty::switch_to_lemurs_tty;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/lemurs/config.toml";
 const PREVIEW_LOG_PATH: &str = "lemurs.log";
@@ -165,12 +168,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     merge_in_configuration(&mut config, matches.value_of("config"));
 
     if !preview {
-        // Switch to the proper tty
-        info!("Switching to tty {}", config.tty);
-
-        chvt::chvt(config.tty.into()).unwrap_or_else(|err| {
-            error!("Failed to switch tty {}. Reason: {}", config.tty, err);
-        });
+        switch_to_lemurs_tty(config.tty);
     }
 
     // Start application
@@ -179,6 +177,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     login_form.run(&mut terminal, try_auth, post_login_env_start)?;
     tui_disable(terminal)?;
 
+    println!("Lemurs terminated...");
     info!("Lemurs is booting down");
 
     Ok(())
